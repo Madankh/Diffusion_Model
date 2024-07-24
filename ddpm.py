@@ -6,7 +6,7 @@ from torch import optim
 from tqdm import tqdm
 import logging
 from torch.utils.tensorboard import SummaryWriter
-
+from modules import UNet
 logging.basicConfig(format="%(asctime)s  - %{levelname}s:%(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
 class Diffusion:
@@ -28,7 +28,7 @@ class Diffusion:
         sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t])[:,None, None, None]
         sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t])[:,None, None, None]
         e = torch.randn_like(x)
-        return sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat*e
+        return sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat*e, e
     
     def sample_timesteps(self, n):
         return torch.randint(low = 1, high=self.noise_steps, size=(n,))
@@ -54,4 +54,26 @@ class Diffusion:
         x = (x * 255).type(torch.uint8)
         return x
 
-    
+def train(args):
+    setup_logging(args.run_name)
+    device = args.device
+    dataloader = get_data(args)
+    model = UNet().to(device)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    mse = nn.MSELoss()
+    diffusion = Diffusion(img_size=args.image_size, device=device)
+    logger = SummaryWriter(os.path.join("runs", args.run_name))
+    l = len(dataloader)
+
+    for epoch in range(args.epochs):
+        logger.info(f"Starting epoch {epoch} : ")
+        pbar = tqdm(dataloader)
+        for i , (images, _) in enumerate(pbar):
+            images = images.to(device)
+            t = diffusion.sample_timesteps(images.shape[0]).to(device)
+            x_t, noise = diffusion.noise_images(images, t)
+            predicted_noise = model(x_t, t)
+            loss = mse(noise, predicted_noise)
+
+            optimizer.zero_grad()
+

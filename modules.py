@@ -137,12 +137,6 @@ class UNet(nn.Module):
         x = self.sa5(x)
         x = self.up3(x , x1, t)
         x = self.sa6(x)
-        outout = self.outc(x)
-        return outout
+        output = self.outc(x)
+        return output  
     
-class UNet_conditional(nn.Module):
-    def __init__(self,c_in=3, c_out=3, time_dim=256, num_classes=None, device= "cuda"):
-        super().__init__()
-        self.device = device
-
-        
